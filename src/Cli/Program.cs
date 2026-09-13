@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -7,7 +7,7 @@ Console.OutputEncoding = System.Text.Encoding.UTF8;
 var info = new
 {
     Title = "CrossApp — практикум з крос-платформного програмування",
-    Student = "Рябінець Олексій, група ФЕІ-22",
+    Student = "Рябінець Олексій, група ФЕІ-35",
     OsDescription = RuntimeInformation.OSDescription,
     OsEnvironment = Environment.OSVersion.ToString(),
     ProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
