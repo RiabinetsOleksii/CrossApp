@@ -24,7 +24,7 @@
 ---
 
 ## 💻 Технічне середовище
-* **Операційна система:** Windows 10 / 11 (x64)
+* **Операційна система:** Windows 11 (x64)
 * **Платформа:** .NET SDK 10.0 (TFM: `net10.0`)
 * **Середовище розробки:** VS Code / Git Bash
 
@@ -37,3 +37,38 @@
 git clone [https://github.com/RiabinetsOleksii/CrossApp.git](https://github.com/RiabinetsOleksii/CrossApp.git)
 cd CrossApp
 dotnet build
+
+2. Запуск консольного застосунку (звичайний режим)
+Для виведення системної інформації та зведених даних у текстовому форматі:
+```bash
+dotnet run --project src/Cli
+
+3. Запуск у режимі JSON
+Для виведення інформації про середовище у форматі JSON з підтримкою коректної кирилиці:
+```bash
+dotnet run --project src/Cli -- --json
+
+4. Self-contained публікація
+Для збірки самодостатніх бінарників без потреби у встановленому .NET Runtime[cite: 1]:  
+* **Для Windows (x64):**
+  ```bash
+  dotnet publish src/Cli -c Release -r win-x64 --self-contained true
+
+  * **Для Linux (x64):**
+  ```bash
+  dotnet publish src/Cli -c Release -r linux-x64 --self-contained true
+
+Прямий запуск зібраного бінарника (наприклад, для Windows 11):
+* **У Git Bash:**
+  ```bash
+  ./src/Cli/bin/Release/net10.0/win-x64/publish/Cli.exe
+
+* **У PowerShell:**
+  ```powershell
+  .\src\Cli\bin\Release\net10.0\win-x64\publish\Cli.exe
+
+### 📊 Порівняння розмірів self-contained публікацій
+| Цільова платформа (RID) | Розмір каталогу publish |
+| :--- | :--- |
+| **`win-x64`** | ~76.66 МБ |
+| **`linux-x64`** | ~78.81 МБ |
