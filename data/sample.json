@@ -1,0 +1,21 @@
+[
+  {
+    "Type": "C",
+    "Id": "C-100",
+    "IpAddress": "10.0.0.1",
+    "Protocol": "HTTP"
+  },
+  {
+    "Type": "S",
+    "Id": "S-100",
+    "Model": "DHT22",
+    "Location": "Серверна"
+  },
+  {
+    "Type": "T",
+    "Id": "T-100",
+    "SensorId": "S-100",
+    "Value": 22.4,
+    "Timestamp": "2026-10-04T12:00:00"
+  }
+]
