@@ -36,28 +36,37 @@ public static class DeviceCsvImporter
     }
 
     private static ParseOutcome ParseLine(string line)
-    {
-        string[] parts = line.Split(Separator, StringSplitOptions.TrimEntries);
+{
+    string[] parts = line.Split(Separator, StringSplitOptions.TrimEntries);
 
-        return parts switch
-        {
-            { Length: < 3 } => new ParseFailed($"очікується мінімум 3 колонки, отримано {parts.Length}"),
-            ["C", var id, var ip, var protocol] when string.IsNullOrWhiteSpace(ip)
-                => new ParseFailed("IP-адреса порожня"),
-            ["C", var id, var ip, var protocol]
-                => new ParseOk(new ControllerDto(id, ip, protocol)),
-            ["S", var id, var model, var location]
-                => new ParseOk(new SensorDto(id, model, string.IsNullOrWhiteSpace(location) ? null : location)),
-            ["S", var id, var model]
-                => new ParseOk(new SensorDto(id, model)),
-            ["T", var id, var sensorId, var valStr, var timestamp] when !double.TryParse(valStr, NumberStyles.Number, CultureInfo.InvariantCulture, out double val)
-                => new ParseFailed($"Значення '{valStr}' не є коректним числом"),
-            ["T", var id, var sensorId, var valStr, var timestamp]
-                => new ParseOk(new TelemetryDto(id, sensorId, double.Parse(valStr, CultureInfo.InvariantCulture), timestamp)),
-            [var type, ..] => new ParseFailed($"Невідомий префікс: '{type}'"),
-            _ => new ParseFailed("Некоректний формат рядка")
-        };
-    }
+    return parts switch
+    {
+        // Відсікаємо відверто закороткі рядки
+        { Length: < 3 } => new ParseFailed($"очікується мінімум 3 колонки, отримано {parts.Length}"),
+
+        ["C", var id, var ip, var protocol] when string.IsNullOrWhiteSpace(ip)
+            => new ParseFailed("IP-адреса порожня"),
+        ["C", var id, var ip, var protocol]
+            => new ParseOk(new ControllerDto(id, ip, protocol)),
+
+        ["S", var id, var model, var location]
+            => new ParseOk(new SensorDto(id, model, string.IsNullOrWhiteSpace(location) ? null : location)),
+        ["S", var id, var model]
+            => new ParseOk(new SensorDto(id, model)),
+
+        ["T", var id, var sensorId, var valStr, var timestamp] when !double.TryParse(valStr, NumberStyles.Number, CultureInfo.InvariantCulture, out double val)
+            => new ParseFailed($"Значення '{valStr}' не є коректним числом"),
+        ["T", var id, var sensorId, var valStr, var timestamp]
+            => new ParseOk(new TelemetryDto(id, sensorId, double.Parse(valStr, CultureInfo.InvariantCulture), timestamp)),
+
+        ["C", ..] => new ParseFailed($"Для контролера очікується 4 колонки, отримано {parts.Length}"),
+        ["S", ..] => new ParseFailed($"Для сенсора очікується 3 або 4 колонки, отримано {parts.Length}"),
+        ["T", ..] => new ParseFailed($"Для  телеметрії очікується 5 колонок, отримано {parts.Length}"),
+
+        [var type, ..] => new ParseFailed($"Невідомий префікс: '{type}'"),
+        _ => new ParseFailed("Некоректний формат рядка")
+    };
+}
 
     private abstract record ParseOutcome;
     private sealed record ParseOk(DeviceDomainDto Value) : ParseOutcome;
