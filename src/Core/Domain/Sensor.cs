@@ -5,61 +5,76 @@ namespace Core.Domain;
 public sealed class Sensor
 {
     private string? _location;
-    private bool _isActive;
     private int _pingIntervalMs;
 
     public string Id { get; }
+    public string ControllerId { get; }
     public string Model { get; }
     public string? Location => _location;
-    public bool IsActive => _isActive;
     public int PingIntervalMs => _pingIntervalMs;
+    public SensorStatus Status { get; private set; } = SensorStatus.New;
 
-    private Sensor(string id, string model, int pingIntervalMs, string? location, bool isActive)
+    private Sensor(string id, string controllerId, string model, int pingIntervalMs, string? location)
     {
         Id = id;
+        ControllerId = controllerId;
         Model = model;
         _pingIntervalMs = pingIntervalMs;
         _location = location;
-        _isActive = isActive;
     }
 
-    public static Sensor Create(string id, string model, int pingIntervalMs, string? location = null)
+    public static Sensor Create(string id, string controllerId, string model, int pingIntervalMs, string? location = null)
     {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Ідентифікатор обов'язковий", nameof(id));
-
+        if (string.IsNullOrWhiteSpace(controllerId))
+            throw new ArgumentException("Прив'язка до контролера обов'язкова", nameof(controllerId));
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Модель не може бути порожньою", nameof(model));
-
         if (pingIntervalMs <= 0)
-            throw new ArgumentOutOfRangeException(nameof(pingIntervalMs), pingIntervalMs,
-                "Інтервал опитування має бути більшим за нуль");
+            throw new ArgumentOutOfRangeException(nameof(pingIntervalMs), pingIntervalMs, "Інтервал опитування має бути > 0");
 
-        return new Sensor(id.Trim(), model.Trim().ToUpperInvariant(), pingIntervalMs, location?.Trim(), true);
+        return new Sensor(id.Trim(), controllerId.Trim(), model.Trim().ToUpperInvariant(), pingIntervalMs, location?.Trim());
     }
 
-    public void Mount(string newLocation)
+    private void TransitionTo(SensorStatus next)
+    {
+        bool allowed = (Status, next) switch
+        {
+            (SensorStatus.New, SensorStatus.Active) => true,
+            (SensorStatus.Active, SensorStatus.Maintenance) => true,
+            (SensorStatus.Maintenance, SensorStatus.Active) => true,
+            (SensorStatus.Active, SensorStatus.Broken) => true,
+            (SensorStatus.Maintenance, SensorStatus.Broken) => true,
+            _ => false
+        };
+
+        if (!allowed)
+            throw new InvalidOperationException($"Сенсор {Id}: перехід {Status} -> {next} неможливий");
+
+        Status = next;
+    }
+
+    public void MountAndActivate(string newLocation)
     {
         if (string.IsNullOrWhiteSpace(newLocation))
             throw new ArgumentException("Нова локація не може бути порожньою", nameof(newLocation));
 
-        if (!_isActive)
-            throw new InvalidOperationException($"Не можна змонтувати деактивований сенсор {Id}");
-
+        TransitionTo(SensorStatus.Active);
         _location = newLocation.Trim();
     }
 
-    public void Deactivate()
-    {
-        if (!_isActive)
-            throw new InvalidOperationException($"Сенсор {Id} вже деактивовано");
-
-        _isActive = false;
-    }
+    public void SendToMaintenance() => TransitionTo(SensorStatus.Maintenance);
+    public void MarkAsBroken() => TransitionTo(SensorStatus.Broken);
 
     public SensorDto ToDto() => new(Id, Model, Location);
 
-    public static Sensor FromDto(SensorDto dto) => Create(dto.Id, dto.Model, 1000, dto.Location);
+    public static Sensor FromDto(SensorDto dto, string controllerId = "UNKNOWN")
+    {
+        var sensor = Create(dto.Id, controllerId, dto.Model, 1000, dto.Location);
+        if (dto.Location != null) sensor.TransitionTo(SensorStatus.Active);
+        return sensor;
+    }
 
-    public override string ToString() => $"Сенсор {Id} [{Model}] | Інтервал: {PingIntervalMs}мс | Локація: {Location ?? "Немає"} | Активний: {IsActive}";
+    public override string ToString() => $"Сенсор {Id} [{Status}] (Контролер: {ControllerId}) | {Model} | Локація: {Location ?? "Немає"}";
 }
