@@ -480,3 +480,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Lab05 data, installer and local backups
+/data/sensors.json
+/lab05-package/
+/CrossApp_Lab05_Install.zip
+/.lab05-backups/

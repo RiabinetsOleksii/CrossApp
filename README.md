@@ -136,3 +136,65 @@ dotnet src/Cli/bin/Debug/net8.0/Cli.dll data/fake.csv
 1. **Міст із тижнем 3 (`SensorBuilder`):** Створено метод, який приймає `ImportResult<DeviceDomainDto>`, намагається перетворити DTO на доменні сутності через фабрику, і якщо спрацьовують інваріанти (винятки `ArgumentException`), записує їх у список помилок нового `ImportResult<Sensor>`.
 2. **Правило двох сутностей (`ControllerCapacityPolicy`):** Реалізовано інваріант, що охоплює Контролер та Сенсори. Заборонено монтувати більше визначеного ліміту (3) активних сенсорів на один мікроконтролер. Правило винесено в окремий статичний клас, оскільки жоден окремий сенсор не "бачить" інші сенсори.
 3. **Явний стан-перелічування (`SensorStatus`):** Замість булевого прапорця використано `enum` (New, Active, Maintenance, Broken). Налаштовано жорстку перевірку допустимих переходів між статусами через `switch expression` над кортежем `(Status, next)` у методі `TransitionTo`.
+
+
+<!-- LAB05-SECTION-START -->
+## 9. Лабораторна робота №5 — сервісний шар, сховища і ручний DI
+
+### Мета
+
+Відокремити бізнес-логіку моніторингу IoT-сенсорів від способу зберігання даних; забезпечити ручний Dependency Injection без стороннього DI-контейнера.
+
+### Архітектура
+
+`Cli (composition root) → SensorService → ISensorStore → InMemorySensorStore | FileSensorStore`
+
+- `ISensorStore` (`src/Core/Abstractions`) — `List`, `GetById`, `Add`, `Update`, `Remove`.
+- `InMemorySensorStore` (`src/Core/Storage`) — словник у RAM, стартові 18 сенсорів.
+- `FileSensorStore` (`src/Core/Storage`) — JSON у `data/sensors.json`, ліниве завантаження, запис після змін.
+- `SensorService` (`src/Core/Services`) — додавання, активація/монтаж, технічне обслуговування, позначення несправності, пошук, видалення.
+- `SensorStorageDto` (`src/Core/Dto`) — повний знімок стану для файлу; `SensorDto` попередніх робіт залишено незмінним.
+
+### Збірка і запуск із кореня CrossApp
+
+Для multi-target `net8.0;net10.0` потрібні відповідні .NET SDK (для `net10.0` — SDK 10).
+
+```powershell
+dotnet --list-sdks
+dotnet build src/Cli/Cli.csproj -f net8.0
+# Варіант без запуску .exe (якщо Windows Smart App Control його блокує):
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll --file
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll --file
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll --cache
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll --file --cache --factory
+# Сценарій попередньої лабораторної №4:
+dotnet src/Cli/bin/Debug/net8.0/Cli.dll --lab04
+# Усі перевірки з автоматичною перевіркою результату:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lab05-check.ps1 -SkipBuild
+```
+
+Альтернатива, якщо запуск застосунків через .NET CLI не блокується:
+
+```powershell
+dotnet run --project src/Cli --framework net8.0 -- --file
+```
+
+При запуску без `--file` зміни зникають після завершення процесу. Прапорець `--file` зберігає дані в `data/sensors.json`; повторний запуск додає новий запис, не затираючи старі.
+
+### Обробка помилок
+
+Демонструються дві контрольовані відмови: повторний `Id` і спроба змінити невідомий сенсор. Повідомлення виводяться через `try/catch` у `Cli`.
+
+### Додаткові завдання
+
+1. Декоратор `CachingSensorStore`: кешує `List`/`GetById` та інвалідовує кеш після змін (`--cache`).
+2. Пошук за делегатом `Func<Sensor,bool>`: `service.Search(s => s.Status == SensorStatus.Active)`.
+3. `StoreFactory.Create(args)` (`--factory`) для вибору сховища; базовий варіант тернарного вибору залишається в `Program.cs`, що дає змогу порівняти обидва підходи.
+
+**DI-контейнер `Microsoft.Extensions.DependencyInjection` не використовується.**
+
+Звіт із коротким описом, схемою залежностей та переліком демонстрацій: [`docs/lab05-report.md`](docs/lab05-report.md).
+
+Для незалежного тестування роботи з JSON можна додати `--data "C:\Temp\sensors-test.json"` разом із `--file`. Скрипт `scripts/lab05-check.ps1` використовує тимчасовий JSON-файл і не чіпає звичайний `data/sensors.json`.
+

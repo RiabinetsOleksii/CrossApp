@@ -48,10 +48,8 @@ public sealed class Sensor
             (SensorStatus.Maintenance, SensorStatus.Broken) => true,
             _ => false
         };
-
         if (!allowed)
             throw new InvalidOperationException($"Сенсор {Id}: перехід {Status} -> {next} неможливий");
-
         Status = next;
     }
 
@@ -59,7 +57,6 @@ public sealed class Sensor
     {
         if (string.IsNullOrWhiteSpace(newLocation))
             throw new ArgumentException("Нова локація не може бути порожньою", nameof(newLocation));
-
         TransitionTo(SensorStatus.Active);
         _location = newLocation.Trim();
     }
@@ -67,6 +64,7 @@ public sealed class Sensor
     public void SendToMaintenance() => TransitionTo(SensorStatus.Maintenance);
     public void MarkAsBroken() => TransitionTo(SensorStatus.Broken);
 
+    // Kept intact for existing CSV/JSON import scenarios (labs 1-4).
     public SensorDto ToDto() => new(Id, Model, Location);
 
     public static Sensor FromDto(SensorDto dto, string controllerId = "UNKNOWN")
@@ -76,5 +74,42 @@ public sealed class Sensor
         return sensor;
     }
 
-    public override string ToString() => $"Сенсор {Id} [{Status}] (Контролер: {ControllerId}) | {Model} | Локація: {Location ?? "Немає"}";
+    // NEW IN LAB 5: complete state saved to disk rather than lossy SensorDto.
+    public SensorStorageDto ToStorageDto() =>
+        new(Id, ControllerId, Model, PingIntervalMs, Location, Status);
+
+    public static Sensor FromStorageDto(SensorStorageDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        // Rehydrate via public domain operations: do NOT expose setters or bypass invariants.
+        var sensor = Create(dto.Id, dto.ControllerId, dto.Model, dto.PingIntervalMs, dto.Location);
+        switch (dto.Status)
+        {
+            case SensorStatus.New:
+                break;
+            case SensorStatus.Active:
+                sensor.MountAndActivate(RequiredLocation(dto));
+                break;
+            case SensorStatus.Maintenance:
+                sensor.MountAndActivate(RequiredLocation(dto));
+                sensor.SendToMaintenance();
+                break;
+            case SensorStatus.Broken:
+                sensor.MountAndActivate(RequiredLocation(dto));
+                sensor.MarkAsBroken();
+                break;
+            default:
+                throw new InvalidDataException($"Невідомий статус сенсора {dto.Id}: {dto.Status}");
+        }
+        return sensor;
+    }
+
+    private static string RequiredLocation(SensorStorageDto dto) =>
+        !string.IsNullOrWhiteSpace(dto.Location)
+            ? dto.Location
+            : throw new InvalidDataException($"Сенсор {dto.Id} зі статусом {dto.Status} повинен мати локацію.");
+
+    public override string ToString() =>
+        $"Сенсор {Id} [{Status}] (Контролер: {ControllerId}) | {Model} | Локація: {Location ?? "Немає"}";
 }

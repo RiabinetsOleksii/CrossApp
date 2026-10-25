@@ -1,71 +1,127 @@
 using System.Text;
+using Core;
+using Core.Abstractions;
 using Core.Domain;
-using Core.Dto;
-using Core.Import;
+using Core.Services;
+using Core.Storage;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-Console.WriteLine("=== Сценарій 1: Дод. завдання 3 (Переходи статусів) ===");
-Sensor mySensor = Sensor.Create("S-001", "C-100", "DHT22", 5000);
-Console.WriteLine(mySensor);
-
-mySensor.MountAndActivate("Серверна");
-Console.WriteLine(mySensor);
-
-mySensor.SendToMaintenance();
-Console.WriteLine(mySensor);
-
-TryDo("Активувати зламаний (заборонено)", () =>
+// Previous work is preserved and available with --lab04.
+if (args.Contains("--lab04", StringComparer.OrdinalIgnoreCase))
 {
-    mySensor.MarkAsBroken();
-    mySensor.MountAndActivate("Серверна");
-});
-Console.WriteLine();
-
-Console.WriteLine("=== Сценарій 2: Дод. завдання 2 (Правило двох сутностей) ===");
-var systemSensors = new List<Sensor>();
-string controllerId = "ESP-32-MAIN";
-
-for (int i = 1; i <= ControllerCapacityPolicy.MaxActiveSensorsPerController; i++)
-{
-    ControllerCapacityPolicy.EnsureCanMountSensor(controllerId, systemSensors);
-    var s = Sensor.Create($"S-10{i}", controllerId, "TM1637", 1000);
-    s.MountAndActivate($"Зона {i}");
-    systemSensors.Add(s);
+    Lab04Demo.Run();
+    return;
 }
-Console.WriteLine($"Підключено сенсорів до {controllerId}: {systemSensors.Count}");
 
-TryDo("Перевищення ліміту портів контролера", () =>
-    ControllerCapacityPolicy.EnsureCanMountSensor(controllerId, systemSensors));
-Console.WriteLine();
+try
+{
+    bool useFile = args.Contains("--file", StringComparer.OrdinalIgnoreCase);
+    bool useCache = args.Contains("--cache", StringComparer.OrdinalIgnoreCase);
+    bool useFactory = args.Contains("--factory", StringComparer.OrdinalIgnoreCase);
+    string dataPath = ProjectPaths.GetSensorDataPath(args);
 
-Console.WriteLine("=== Сценарій 3: Дод. завдання 1 (Міст імпорту з доменними правилами) ===");
-var importedDtos = new ImportResult<DeviceDomainDto>(
-    [
-        new SensorDto("S-201", "HC-SR04", "Цех 1"),
-        new SensorDto("S-202", "", "Цех 2")
-    ],
-    ["Стара помилка читання рядка 5"]
-);
+    // Composition root: concrete stores are chosen only in Program.cs.
+    ISensorStore store = useFactory
+        ? StoreFactory.Create(args)
+        : useFile
+            ? new FileSensorStore(dataPath)
+            : new InMemorySensorStore(SampleData.Sensors());
 
-var domainImport = SensorBuilder.FromImport(importedDtos);
-Console.WriteLine($"Імпортовано валідних сутностей: {domainImport.Items.Count}");
-Console.WriteLine("Помилки в процесі (старі + порушення домену):");
-foreach (var err in domainImport.Errors) Console.WriteLine($" - {err}");
+    // Seed the file once; do not overwrite existing file contents on next run.
+    if (useFile && store.List().Count == 0)
+    {
+        foreach (var sensor in SampleData.Sensors())
+            store.Add(sensor);
+    }
 
-Console.WriteLine("\n=== Сценарій 4: Стандартні інваріанти ===");
-TryDo("Порожня модель при створенні", () => Sensor.Create("S-002", "C-1", "", 1000));
-TryDo("Від'ємний інтервал", () => Sensor.Create("S-003", "C-1", "ESP32", -500));
+    if (useCache)
+        store = new CachingSensorStore(store);
 
-static void TryDo(string title, Action action)
+    var service = new SensorService(store);
+    Console.WriteLine($"Сховище: {(useFile ? nameof(FileSensorStore) : nameof(InMemorySensorStore))}" +
+                      (useCache ? " + CachingSensorStore" : ""));
+    Console.WriteLine($"Спосіб вибору: {(useFactory ? "StoreFactory" : "тернарний оператор у Program.cs")}");
+    Console.WriteLine($"Записів до сценарію: {service.All().Count}");
+    if (useFile) Console.WriteLine($"JSON-файл: {dataPath}");
+
+    Console.WriteLine("\n=== Лабораторна №5: додати, змінити, знайти, показати ===");
+    var created = service.Add("ESP-DEMO", "DHT22", 1500);
+    service.Mount(created.Id, "IoT-лабораторія");
+    Console.WriteLine($"Знайдено за ID: {service.Find(created.Id)}");
+    Console.WriteLine($"Записів після сценарію: {service.All().Count}");
+    foreach (var sensor in service.All().TakeLast(5))
+        Console.WriteLine($" - {sensor}");
+
+    Console.WriteLine("\n=== Додаткове №2: пошук через Func<Sensor, bool> ===");
+    var active = service.Search(s => s.Status == SensorStatus.Active);
+    Console.WriteLine($"Активних сенсорів: {active.Count}");
+
+    Console.WriteLine("\n=== Сценарії контрольованих помилок ===");
+    ShowExpectedError("Дубль ID", () => store.Add(created));
+    ShowExpectedError("Невідомий ID", () => service.Mount("S-NOT-EXIST", "Невідома зона"));
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Помилка запуску: {ex.Message}");
+    Environment.ExitCode = 1;
+}
+
+static void ShowExpectedError(string title, Action action)
 {
     try
     {
         action();
-        Console.WriteLine($" [X] {title}: виняток НЕ спрацював!");
+        Console.WriteLine($"[FAIL] {title}: помилку не виявлено.");
+        Environment.ExitCode = 1;
     }
-    catch (Exception ex)
+    catch (InvalidOperationException ex)
     {
-        Console.WriteLine($" [V] {title}: {ex.GetType().Name} - {ex.Message}");
+        Console.WriteLine($"[OK] {title}: {ex.Message}");
+    }
+}
+
+// All concrete store creation remains in the CLI composition-root file.
+internal static class StoreFactory
+{
+    public static ISensorStore Create(string[] args)
+    {
+        bool file = args.Contains("--file", StringComparer.OrdinalIgnoreCase);
+        string path = ProjectPaths.GetSensorDataPath(args);
+        return file
+            ? new FileSensorStore(path)
+            : new InMemorySensorStore(SampleData.Sensors());
+    }
+}
+
+internal static class ProjectPaths
+{
+    public static string GetSensorDataPath(string[] args)
+    {
+        int option = Array.FindIndex(args, a =>
+            string.Equals(a, "--data", StringComparison.OrdinalIgnoreCase));
+        if (option >= 0)
+        {
+            if (option + 1 >= args.Length || args[option + 1].StartsWith("--", StringComparison.Ordinal))
+                throw new ArgumentException("Після --data потрібно вказати шлях до JSON-файлу.");
+            return Path.GetFullPath(args[option + 1]);
+        }
+
+        return Path.Combine(FindRepositoryRoot(), "data", "sensors.json");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            DirectoryInfo? dir = new DirectoryInfo(start);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "CrossApp.slnx")))
+                    return dir.FullName;
+                dir = dir.Parent;
+            }
+        }
+        throw new DirectoryNotFoundException("Не знайдено CrossApp.slnx; запусти програму з папки CrossApp.");
     }
 }
