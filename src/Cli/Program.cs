@@ -7,6 +7,13 @@ using Core.Storage;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+// Lab 6: domain events, subscriptions, Func and optional notification sinks.
+if (args.Contains("--lab06", StringComparer.OrdinalIgnoreCase))
+{
+    Lab06Demo.Run(args);
+    return;
+}
+
 // Previous work is preserved and available with --lab04.
 if (args.Contains("--lab04", StringComparer.OrdinalIgnoreCase))
 {
@@ -21,7 +28,6 @@ try
     bool useFactory = args.Contains("--factory", StringComparer.OrdinalIgnoreCase);
     string dataPath = ProjectPaths.GetSensorDataPath(args);
 
-    // Composition root: concrete stores are chosen only in Program.cs.
     ISensorStore store = useFactory
         ? StoreFactory.Create(args)
         : useFile

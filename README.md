@@ -138,7 +138,6 @@ dotnet src/Cli/bin/Debug/net8.0/Cli.dll data/fake.csv
 3. **Явний стан-перелічування (`SensorStatus`):** Замість булевого прапорця використано `enum` (New, Active, Maintenance, Broken). Налаштовано жорстку перевірку допустимих переходів між статусами через `switch expression` над кортежем `(Status, next)` у методі `TransitionTo`.
 
 
-<!-- LAB05-SECTION-START -->
 ## 9. Лабораторна робота №5 — сервісний шар, сховища і ручний DI
 
 ### Мета
