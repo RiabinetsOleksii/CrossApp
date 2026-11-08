@@ -492,3 +492,7 @@ $RECYCLE.BIN/
 /.lab06-backups/
 /lab06-package/
 /CrossApp_Lab06_Ready.zip
+# Lab 7 installation files
+/.lab07-backups/
+/lab07-package/
+/CrossApp_Lab07_Complete.zip

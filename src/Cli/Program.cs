@@ -7,6 +7,14 @@ using Core.Storage;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+// Lab 7: LINQ reports. Flags such as --file are never treated as commands.
+if (args.Contains("--lab07", StringComparer.OrdinalIgnoreCase) ||
+    args.Any(a => a.StartsWith("report-", StringComparison.OrdinalIgnoreCase)))
+{
+    Lab07Demo.Run(args);
+    return;
+}
+
 // Lab 6: domain events, subscriptions, Func and optional notification sinks.
 if (args.Contains("--lab06", StringComparer.OrdinalIgnoreCase))
 {
