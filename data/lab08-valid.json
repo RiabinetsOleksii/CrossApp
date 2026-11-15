@@ -1,0 +1,6 @@
+[
+  {"Id":"S-L8-01","ControllerId":"ESP-L8-A","Model":"DHT22","PingIntervalMs":500,"Location":null,"Status":"New"},
+  {"Id":"S-L8-02","ControllerId":"ESP-L8-A","Model":"PIR","PingIntervalMs":1000,"Location":"Лабораторія 8","Status":"Active"},
+  {"Id":"S-L8-03","ControllerId":"ESP-L8-B","Model":"BMP280","PingIntervalMs":1500,"Location":null,"Status":"New"},
+  {"Id":"S-L8-04","ControllerId":"ESP-L8-B","Model":"HC-SR04","PingIntervalMs":900,"Location":null,"Status":"New"}
+]

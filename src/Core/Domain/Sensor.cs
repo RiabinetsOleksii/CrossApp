@@ -49,7 +49,7 @@ public sealed class Sensor
             _ => false
         };
         if (!allowed)
-            throw new InvalidOperationException($"Сенсор {Id}: перехід {Status} -> {next} неможливий");
+            throw new Core.DomainException($"Сенсор {Id}: перехід {Status} -> {next} неможливий");
         Status = next;
     }
 

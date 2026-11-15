@@ -7,6 +7,13 @@ using Core.Storage;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+// Lab 8: async JSON import, cancellation, streaming and progress.
+if (args.Contains("--lab08", StringComparer.OrdinalIgnoreCase))
+{
+    await Lab08Demo.RunAsync(args);
+    return;
+}
+
 // Lab 7: LINQ reports. Flags such as --file are never treated as commands.
 if (args.Contains("--lab07", StringComparer.OrdinalIgnoreCase) ||
     args.Any(a => a.StartsWith("report-", StringComparison.OrdinalIgnoreCase)))

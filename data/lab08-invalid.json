@@ -1,0 +1,4 @@
+[
+  {"Id":"S-L8-OK","ControllerId":"ESP-L8","Model":"PIR","PingIntervalMs":800,"Location":null,"Status":"New"},
+  {"Id":"S-L8-BAD","ControllerId":"ESP-L8","Model":"PIR","PingIntervalMs":0,"Location":null,"Status":"New"}
+]

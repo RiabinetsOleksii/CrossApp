@@ -464,3 +464,61 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lab07-check.ps1
 
 Також реалізовано всі чотири додаткові завдання: `GroupJoin`, власний метод-розширення `TopBy<T>`, синтаксис LINQ-запитів та вимірювання продуктивності через `Stopwatch`.
 
+<!-- LAB08-SECTION-START -->
+## 12. Лабораторна робота №8 — async/await, скасування, доменні винятки, unit-тести Core
+
+**Мета:** Реалізувати справжнє асинхронне читання JSON, кооперативне скасування, відокремити доменні помилки від технічних і протестувати Core за допомогою xUnit.
+
+### Реалізація
+
+- `Core/Abstractions/ISensorImporter.cs` — контракт `Task<IReadOnlyList<Sensor>> LoadAsync(...)`.
+- `Core/Import/JsonSensorImporter.cs` — `FileStream(useAsync: true)`, `JsonSerializer.DeserializeAsync`, `CancellationToken`, `ThrowIfCancellationRequested` і повідомлення про номер некоректного запису.
+- `Core/DomainException.cs` — виняток бізнес-правила; успадковує `InvalidOperationException` для сумісності з обробниками попередніх лабораторних. Некоректні аргументи залишаються `ArgumentException`, а `IOException`/`JsonException` — технічними винятками.
+- `SensorService.ImportAsync` — ручне впровадження імпортера, пропуск повторних ID, подія `Changed` лише для успішно доданих сенсорів.
+- `Cli/Lab08Demo.cs` — асинхронний запуск, Ctrl+C і окремі `catch` для скасування, доменних і технічних помилок.
+- `tests/Core.Tests` — ізольовані xUnit-тести лише з посиланням на Core (`[Fact]`, `[Theory]`, `[InlineData]`, Arrange–Act–Assert).
+
+### Додаткові завдання (усі 4)
+
+1. **Потоковий імпорт:** `IStreamingSensorImporter`, `JsonSensorImporter.StreamAsync`, `IAsyncEnumerable<Sensor>`, `[EnumeratorCancellation]`, `await foreach`.
+2. **Зв'язані токени:** `CancellationTokenSource.CreateLinkedTokenSource(user.Token, timeout.Token)`; xUnit-тест доводить, що спрацював тайм-аут, а не токен користувача.
+3. **Прогрес:** `IProgress<int>` з відсотками по кількості оброблених JSON-записів, обробник у Cli.
+4. **Покриття:** `dotnet test --collect:"XPlat Code Coverage"`; Cobertura-XML записується в `artifacts/test-results/`. Реальний відсоток друкується скриптом і залежить від виконаних тестів. Не всі гілки старих імпортерів, CLI та файлового кешу покриваються тестами — цей набір зосереджений на Core, імпорті, доменних правилах, звітах і скасуванні. Cli не входить до тестового проєкту.
+
+### Запуск із кореня CrossApp (PowerShell)
+
+```powershell
+# Збірка
+dotnet build src/Cli/Cli.csproj -f net8.0
+# Успішний імпорт і події
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-async
+# Потоковий імпорт (додаткове №1)
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-stream
+# Прогрес (додаткове №3)
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-progress
+# Скасування і зв'язаний таймаут (додаткове №2)
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-cancel
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-timeout
+# Некоректний доменний запис із номером рядка
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-invalid
+# Скасування вручну: натиснути Ctrl+C під час асинхронної затримки
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-async --delay-ms 10000
+# Імпорт у окреме файлове сховище (повторний запуск має додати 0)
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab08 import-async --file --data data/lab08-imported.json
+```
+
+**Тести та покриття:**
+
+```powershell
+dotnet test tests/Core.Tests/Core.Tests.csproj -f net8.0
+dotnet test tests/Core.Tests/Core.Tests.csproj -f net8.0 --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lab08-check.ps1
+```
+
+Тести використовують нове `InMemorySensorStore` для кожного сценарію. Лише тести JSON-вводу створюють файли в `Path.GetTempPath()` та видаляють їх у `finally`. Не використовуються `.Result`, `.Wait()` або `Task.Run` для обгортання синхронного I/O.
+
+### Висновок
+
+Додано асинхронний імпорт з `CancellationToken`, винятки бізнес-правил, потокове читання, індикацію прогресу та ізольовані тести. Залишено сумісні команди лабораторних 5–7.
+
+Документи: [`docs/lab08-report.md`](docs/lab08-report.md), [`docs/lab08-defense.md`](docs/lab08-defense.md), [`docs/lab08-questions.md`](docs/lab08-questions.md).

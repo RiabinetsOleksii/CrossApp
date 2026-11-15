@@ -496,3 +496,9 @@ $RECYCLE.BIN/
 /.lab07-backups/
 /lab07-package/
 /CrossApp_Lab07_Complete.zip
+# Lab 8 temporary files
+/.lab08-backups/
+/lab08-package/
+/CrossApp_Lab08_Complete.zip
+/artifacts/test-results/
+/data/lab08-imported.json

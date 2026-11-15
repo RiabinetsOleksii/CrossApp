@@ -2,8 +2,6 @@ namespace Core.Reports;
 
 public static class EnumerableReportExtensions
 {
-    // Optional task #2: generic TopBy<T>. The explicit unique key makes ties deterministic.
-    // Applied to two different report DTO / source types in SensorReportService.
     public static IReadOnlyList<T> TopBy<T>(
         this IEnumerable<T> source,
         Func<T, int> scoreSelector,

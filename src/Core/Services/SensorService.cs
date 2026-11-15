@@ -34,7 +34,7 @@ public sealed class SensorService(ISensorStore store, INotificationSink? notific
     public void Mount(string id, string location)
     {
         var sensor = _store.GetById(id)
-            ?? throw new InvalidOperationException($"Сенсор з id={id} не знайдено.");
+            ?? throw new Core.DomainException($"Сенсор з id={id} не знайдено.");
         ControllerCapacityPolicy.EnsureCanMountSensor(sensor.ControllerId, _store.List());
         var before = sensor.Status;
         sensor.MountAndActivate(location);
@@ -45,7 +45,7 @@ public sealed class SensorService(ISensorStore store, INotificationSink? notific
     public void SendToMaintenance(string id)
     {
         var sensor = _store.GetById(id)
-            ?? throw new InvalidOperationException($"Сенсор з id={id} не знайдено.");
+            ?? throw new Core.DomainException($"Сенсор з id={id} не знайдено.");
         var before = sensor.Status;
         sensor.SendToMaintenance();
         _store.Update(sensor);
@@ -55,7 +55,7 @@ public sealed class SensorService(ISensorStore store, INotificationSink? notific
     public void MarkAsBroken(string id)
     {
         var sensor = _store.GetById(id)
-            ?? throw new InvalidOperationException($"Сенсор з id={id} не знайдено.");
+            ?? throw new Core.DomainException($"Сенсор з id={id} не знайдено.");
         var before = sensor.Status;
         sensor.MarkAsBroken();
         _store.Update(sensor);
@@ -82,4 +82,43 @@ public sealed class SensorService(ISensorStore store, INotificationSink? notific
 
     // Lab 5 compatibility: retain the previous search API.
     public IReadOnlyList<Sensor> Search(Func<Sensor, bool> predicate) => FindAll(predicate);
+
+    // Lab 8: async boundary; store remains sync for Lab 5-7 compatibility.
+    // All records are validated before any changes reach the store.
+    public async Task<int> ImportAsync(
+        ISensorImporter importer, string path, CancellationToken ct = default,
+        IProgress<int>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+        ct.ThrowIfCancellationRequested();
+        var sensors = await importer.LoadAsync(path, ct, progress);
+        int added = 0;
+        foreach (var sensor in sensors)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_store.GetById(sensor.Id) is not null) continue;
+            _store.Add(sensor);
+            OnChanged(sensor, SensorChangeKind.Added, null, sensor.Status);
+            added++;
+        }
+        return added;
+    }
+
+    // Optional #1: streaming import; no complete in-memory list required.
+    public async Task<int> ImportStreamAsync(
+        IStreamingSensorImporter importer, string path, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+        ct.ThrowIfCancellationRequested();
+        int added = 0;
+        await foreach (var sensor in importer.StreamAsync(path, ct).WithCancellation(ct))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_store.GetById(sensor.Id) is not null) continue;
+            _store.Add(sensor);
+            OnChanged(sensor, SensorChangeKind.Added, null, sensor.Status);
+            added++;
+        }
+        return added;
+    }
 }
