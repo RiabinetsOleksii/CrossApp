@@ -502,3 +502,11 @@ $RECYCLE.BIN/
 /CrossApp_Lab08_Complete.zip
 /artifacts/test-results/
 /data/lab08-imported.json
+# Lab 9: installer, generated data, local-only secrets
+/.lab09-backups/
+/lab09-package/
+/CrossApp_Lab09_Complete.zip
+/data/lab09-*.json
+/src/Cli/appsettings.Local.json
+/src/Cli/appsettings.*.local.json
+**/secrets.json

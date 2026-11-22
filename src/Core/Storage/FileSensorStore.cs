@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Core.Abstractions;
@@ -11,6 +12,9 @@ public sealed class FileSensorStore(string path) : ISensorStore
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter() }
     };
 
@@ -41,9 +45,25 @@ public sealed class FileSensorStore(string path) : ISensorStore
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         var dtos = _cache.Values.Select(s => s.ToStorageDto()).ToList();
-        File.WriteAllText(_path, JsonSerializer.Serialize(dtos, Options));
+        var temp = _path + ".tmp";
+        try
+        {
+            File.WriteAllText(temp, JsonSerializer.Serialize(dtos, Options));
+            File.Move(temp, _path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
     }
 
+    // Lab 9: export the full collection with the same atomic JSON writer.
+    public int ExportSnapshot()
+    {
+        EnsureLoaded();
+        Flush();
+        return _cache.Count;
+    }
     public IReadOnlyList<Sensor> List()
     {
         EnsureLoaded();

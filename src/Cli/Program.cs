@@ -6,6 +6,16 @@ using Core.Services;
 using Core.Storage;
 
 Console.OutputEncoding = Encoding.UTF8;
+// Lab 9: portable JSON, profiles, secrets and optional CLI configuration.
+// Both `--lab09 export` and `export` work (the latter matches the worksheet).
+if (args.Contains("--lab09", StringComparer.OrdinalIgnoreCase) ||
+    args.Any(a => a.Equals("config", StringComparison.OrdinalIgnoreCase) ||
+                  a.Equals("export", StringComparison.OrdinalIgnoreCase) ||
+                  a.Equals("import", StringComparison.OrdinalIgnoreCase)))
+{
+    await Lab09Demo.RunAsync(args);
+    return;
+}
 
 // Lab 8: async JSON import, cancellation, streaming and progress.
 if (args.Contains("--lab08", StringComparer.OrdinalIgnoreCase))
@@ -128,10 +138,10 @@ internal static class ProjectPaths
             return Path.GetFullPath(args[option + 1]);
         }
 
-        return Path.Combine(FindRepositoryRoot(), "data", "sensors.json");
+        return Lab09Configuration.Load(args).DataFile;
     }
 
-    private static string FindRepositoryRoot()
+    internal static string FindRepositoryRoot()
     {
         foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
         {
@@ -143,6 +153,6 @@ internal static class ProjectPaths
                 dir = dir.Parent;
             }
         }
-        throw new DirectoryNotFoundException("Не знайдено CrossApp.slnx; запусти програму з папки CrossApp.");
+        return AppContext.BaseDirectory; // Published application without solution files.
     }
 }

@@ -467,3 +467,127 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lab08-check.ps1
 Додано асинхронний імпорт з `CancellationToken`, винятки бізнес-правил, потокове читання, індикацію прогресу та ізольовані тести. Залишено сумісні команди лабораторних 5–7.
 
 Документи: [`docs/lab08-report.md`](docs/lab08-report.md), [`docs/lab08-defense.md`](docs/lab08-defense.md), [`docs/lab08-questions.md`](docs/lab08-questions.md).
+
+<!-- LAB09-SECTION-START -->
+## 13. Лабораторна робота №9 — Шляхи, JSON, конфігурація та Secrets
+
+**Мета:** усунути залежність шляхів від Windows і робочого каталогу, винести налаштування в `appsettings.json`, підтримати змінні середовища, безпечне зберігання ключів та експорт/імпорт усієї колекції IoT-сенсорів.
+
+### Що реалізовано
+
+- `src/Core/Configuration/AppOptions.cs`: POCO `AppOptions`, `StorageOptions`, `LoggingOptions`; повний шлях через `Path.Combine`, `Path.GetFullPath`, `Directory.CreateDirectory`.
+- `src/Cli/appsettings.json`: базові параметри; `appsettings.Development.json` (Debug) і `appsettings.Production.json` (Warning). У Git зберігаються лише несекретні налаштування.
+- `src/Cli/Lab09Configuration.cs`: `ConfigurationBuilder`, завантаження JSON → профілю → user-secrets → `CROSSAPP_`-змінних → конфігураційних CLI-аргументів; `Get<AppOptions>()`.
+- `src/Core/Storage/FileSensorStore.cs`: повна серіалізація `SensorStorageDto` з `Id`, `ControllerId`, `Model`, `PingIntervalMs`, `Location`, `Status`; `camelCase`, читабельна кирилиця, атомарний запис `*.tmp` + `File.Move(..., overwrite: true)` та зворотне читання старого JSON.
+- `src/Cli/Lab09Demo.cs`: `--lab09 config`, `--lab09 export`, `--lab09 import`. Команда `import` повторно використовує асинхронний імпортер лабораторної №8.
+- `tests/Core.Tests/Lab09Tests.cs`: тести побудови шляхів, перевірки імен файлів, атомарного запису, кирилиці, сумісності старого JSON і обробки помилкового файлу.
+
+**Відмінність від методички:** у нас предметна область — IoT-сенсори, а не товари. Замість `ProductDto` використано `SensorStorageDto`; замість `FileCatalogStore` — наявний `FileSensorStore`. Це зберігає сумісність із попередніми лабораторними.
+
+### Ключі конфігурації
+
+| Налаштування | Значення за замовчуванням | Перевизначення |
+| --- | --- | --- |
+| `Storage:DataPath` | `data` від кореня проєкту | `CROSSAPP_Storage__DataPath` |
+| `Storage:FileName` | `sensors.json` | `CROSSAPP_Storage__FileName` |
+| `Logging:MinimumLevel` | `Information` / `Debug` (Development) / `Warning` (Production) | `CROSSAPP_Logging__MinimumLevel` |
+| `EnvironmentName` | `Development` | `CROSSAPP_ENVIRONMENT` (обирає профіль) |
+| `Integration:ApiKey` | відсутній | user-secrets або `CROSSAPP_Integration__ApiKey` |
+
+Окрема сумісна змінна **`CROSSAPP_DATA_PATH`** перевизначає каталог даних поверх `Storage:DataPath`. `--data <filename>` залишається для старих сценаріїв лабораторних 5–8. Шлях за замовчуванням не залежить від того, звідки запустили CLI: застосунок знаходить корінь через `AppContext.BaseDirectory` та `CrossApp.slnx` (для опублікованої програми без solution використовує сам `AppContext.BaseDirectory`).
+
+### Профілі
+
+- **Development:** `appsettings.json` + `appsettings.Development.json`, рівень логування `Debug`, каталог за замовчуванням `data`.
+- **Production:** `appsettings.json` + `appsettings.Production.json`, рівень `Warning`, каталог за замовчуванням такий самий, якщо не перевизначений змінною середовища.
+- `Environment.CurrentDirectory` залежить від місця запуску; `AppContext.BaseDirectory` — каталог збірки. Тому відносний шлях обчислюється від сталого кореня, а не від cwd.
+
+### Запуск з кореня CrossApp
+
+```powershell
+dotnet restore src/Cli/Cli.csproj
+dotnet build src/Cli/Cli.csproj -f net8.0
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 export
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 import
+dotnet test tests/Core.Tests/Core.Tests.csproj -f net8.0
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\lab09-check.ps1
+```
+
+При першому експорті в порожнє сховище створюються три навчальні сенсори. Якщо JSON уже існує, **існуючі записи не затираються**: експортується вся поточна колекція.
+
+### Пріоритет конфігурації — приклади PowerShell
+
+```powershell
+$env:CROSSAPP_Storage__DataPath = "$env:TEMP\crossapp-lab09-demo"
+$env:CROSSAPP_Storage__FileName = "my-sensors.json"
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 export
+# Прибрати тільки ці дві змінні після демонстрації:
+Remove-Item Env:CROSSAPP_Storage__DataPath,Env:CROSSAPP_Storage__FileName -ErrorAction SilentlyContinue
+
+$env:CROSSAPP_DATA_PATH = "$env:TEMP\crossapp-simple-override"
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+Remove-Item Env:CROSSAPP_DATA_PATH
+
+$env:CROSSAPP_ENVIRONMENT = "Production"
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+Remove-Item Env:CROSSAPP_ENVIRONMENT
+```
+
+### Приклади Bash (Linux, macOS, WSL)
+
+```bash
+CROSSAPP_Storage__DataPath=/tmp/crossapp-lab09 dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 export
+CROSSAPP_DATA_PATH=/tmp/crossapp-simple dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+CROSSAPP_ENVIRONMENT=Production dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+```
+
+### User-secrets (значення НЕ записується в Git)
+
+У `Cli.csproj` вже є `UserSecretsId`. Виконується **локально** (значення заміни своїм навчальним прикладом):
+
+```powershell
+dotnet user-secrets set "Integration:ApiKey" "YOUR_LOCAL_DEMO_VALUE" --project src/Cli
+dotnet user-secrets list --project src/Cli
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+```
+
+На Windows секрет фізично зберігається в `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`, на Linux/macOS у `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json` — **поза репозиторієм**. Програма виводить лише `ApiKey=present,length=N`, а не секрет. Для Production краще використовувати змінні середовища або спеціалізоване secret-сховище. Ці навчальні secrets не шифруються автоматично.
+
+### Перевірка переносимості та захист
+
+```powershell
+# Із кореня
+ dotnet run --project src/Cli/Cli.csproj -f net8.0 -- --lab09 config
+# Із папки Cli
+cd src/Cli
+ dotnet run --project Cli.csproj -f net8.0 -- --lab09 config
+cd ../..
+# В обох виводах LAB09: path=... має збігатися.
+```
+
+Перевірка скриптом: `scripts/lab09-check.ps1`. Він використовує окремий тимчасовий каталог у `artifacts/`, не змінює основні `data/sensors.json` та відновлює змінні середовища. Під час перевірки не повинно залишатися `.tmp` файлів, а пошкоджений JSON має спричиняти контрольоване повідомлення `LAB09: invalid-json`.
+
+**Увага для Windows:** Smart App Control може заблокувати щойно зібрану `Cli.dll` або `Core.Tests.dll` з кодом `0x800711C7`; успішна компіляція не вимикає цю політику. Для запуску використовуй дозволене середовище .NET (наприклад WSL), не відключаючи захист без потреби.
+
+### Висновок
+
+Реалізовано єдине конфігуроване JSON-сховище, стабільні між ОС та робочими каталогами шляхи, профілі Development/Production, перевизначення змінними, user-secrets без передачі ключів у Git і атомарний експорт/імпорт IoT-сенсорів. Збережено сумісність з лабораторною №8.
+
+Звіт: [`docs/lab09-report.md`](docs/lab09-report.md), захист: [`docs/lab09-defense.md`](docs/lab09-defense.md), питання: [`docs/lab09-questions.md`](docs/lab09-questions.md).
+
+
+### Додаткова перевірка опційної можливості AddCommandLine
+
+У методичці №9 немає окремо сформульованих додаткових завдань. Опціонально підтримано перевизначення `Storage:DataPath` і `Storage:FileName` з CLI — аргументи мають найвищий пріоритет серед стандартних конфігураційних провайдерів:
+
+```powershell
+# Із кореня CrossApp:
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- export --Storage:DataPath=lab09-cli-data --Storage:FileName=from-cli.json
+# Дозволено також виклик без прапорця --lab09:
+dotnet run --project src/Cli/Cli.csproj -f net8.0 -- import
+```
+
+Автоматична перевірка опційного перевизначення додана до `scripts/lab09-check.ps1` (підкрок **3b**). У `tests/Core.Tests/Lab09Tests.cs` є додатковий тест повного експорту п'яти записів і автоматичного створення відсутнього каталогу.
+
+Докладна матриця вимог: [`docs/lab09-all-tasks-checklist.md`](docs/lab09-all-tasks-checklist.md).

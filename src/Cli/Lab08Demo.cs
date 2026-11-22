@@ -13,9 +13,9 @@ internal static class Lab08Demo
     {
         var command = args.FirstOrDefault(x => x.StartsWith("import-", StringComparison.OrdinalIgnoreCase))
             ?? "import-async";
-        var input = Option(args, "--path") ?? Path.Combine("data", "lab08-valid.json");
+        var input = Option(args, "--path") ?? Path.Combine(ProjectPaths.FindRepositoryRoot(), "data", "lab08-valid.json");
         if (command.Equals("import-invalid", StringComparison.OrdinalIgnoreCase))
-            input = Option(args, "--path") ?? Path.Combine("data", "lab08-invalid.json");
+            input = Option(args, "--path") ?? Path.Combine(ProjectPaths.FindRepositoryRoot(), "data", "lab08-invalid.json");
         input = Path.GetFullPath(input);
         var timeoutMs = IntOption(args, "--timeout-ms", 0);
         var delayMs = IntOption(args, "--delay-ms", 0);

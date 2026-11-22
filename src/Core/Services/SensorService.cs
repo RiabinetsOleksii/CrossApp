@@ -80,7 +80,7 @@ public sealed class SensorService(ISensorStore store, INotificationSink? notific
         return _store.List().Where(predicate).ToList();
     }
 
-    // Lab 5 compatibility: retain the previous search API.
+    // Lab 5 compatibility: retain the previous search API.F
     public IReadOnlyList<Sensor> Search(Func<Sensor, bool> predicate) => FindAll(predicate);
 
     // Lab 8: async boundary; store remains sync for Lab 5-7 compatibility.
