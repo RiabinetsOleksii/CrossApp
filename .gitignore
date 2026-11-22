@@ -510,3 +510,4 @@ $RECYCLE.BIN/
 /src/Cli/appsettings.Local.json
 /src/Cli/appsettings.*.local.json
 **/secrets.json
+CrossApp_Lab09_*.zip
